@@ -1,0 +1,16 @@
+[project]
+name = "nerf-harness"
+version = "0.1.0"
+description = "Append-only harness for inspectable repeated model analysis"
+requires-python = ">=3.10"
+dependencies = ["openai>=1.0.0"]
+
+[project.scripts]
+nerf = "nerf_harness.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
