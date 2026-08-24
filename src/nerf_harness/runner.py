@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import Any
@@ -17,11 +18,42 @@ def sha256(text: str) -> str:
 
 
 def parse_json(text: str) -> dict[str, Any]:
-    try:
-        value = json.loads(text)
-        return value if isinstance(value, dict) else {"raw": value}
-    except json.JSONDecodeError:
-        return {"raw": text, "parse_error": True}
+    """Parse model JSON while tolerating common Markdown code fences.
+
+    The harness asks for JSON-only output, but models may still wrap otherwise
+    valid JSON in ```json ... ``` fences. Preserve a parse error only after
+    trying the raw text, a fenced block, and a decodable JSON object/array
+    embedded in surrounding whitespace or prose.
+    """
+    candidates = [text.strip()]
+
+    fenced = re.fullmatch(
+        r"\s*```(?:json)?\s*\n?(.*?)\n?```\s*",
+        text,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if fenced:
+        candidates.append(fenced.group(1).strip())
+
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+            return value if isinstance(value, dict) else {"raw": value}
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: recover the first complete JSON value from surrounding text.
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char not in "{[":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+            return value if isinstance(value, dict) else {"raw": value}
+        except json.JSONDecodeError:
+            continue
+
+    return {"raw": text, "parse_error": True}
 
 
 def run_artifact(
